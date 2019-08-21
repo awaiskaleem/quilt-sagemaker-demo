@@ -1,21 +1,20 @@
 import flask
-from flask import Flask, Response
+from flask import Flask, Response, jsonify, request
 import pandas as pd
 from io import StringIO
+import joblib
+#import csv
+
 app = Flask(__name__)
 
-
-from keras.models import load_model
-clf = load_model('clf.h5')
-clf._make_predict_function()  # GH#6462 @ keras-team/keras
-
+clf=joblib.load(filename='classifier')
 
 def run_model(input_arr):
     """Predictor function."""
-    # reshape the flat [0, 255]-entry list into a [0, 1]-entry grid, as desired by the CNN.
-    input_arr = input_arr.reshape(input_arr.shape[0], 28, 28, 1).astype('float') / 255
-    return clf.predict(input_arr).argmax(axis=1)
-
+    txfm_input_arr = input_arr[['Age','Fare']]
+    pred = clf.predict(txfm_input_arr)
+    #return 1
+    return pd.DataFrame(clf.predict(txfm_input_arr),columns=['Predictions'])
 
 @app.route('/ping', methods=['GET'])
 def ping():
@@ -24,10 +23,10 @@ def ping():
     """
     # we will return status ok if the model doesn't barf
     # but you can also insert slightly more sophisticated tests here
-    health_check_arr = pd.read_csv("health-check-data.csv").values
+    test_data = pd.read_csv("test.csv")
     try:
-        result = run_model(health_check_arr)
-        return Response(response='{"status": "ok"}', status=200, mimetype='application/json')
+        result = run_model(test_data)
+        return Response(response='{"status": "SUCCESS!"}', status=501, mimetype='application/json')
     except:
         return Response(response='{"status": "error"}', status=500, mimetype='application/json')
 
@@ -36,17 +35,15 @@ def ping():
 def predict():
     """
     Do an inference on a single batch of data.
+    curl -H "Content-Type: multipart/form-data" -F "file=@train.csv" http://0.0.0.0:8080/invocations
     """
-    if flask.request.content_type == 'text/csv':
-        X_train = flask.request.data.decode('utf-8')
-        X_train = pd.read_csv(StringIO(X_train), header=None).values
-    else:
-        return flask.Response(response='This predictor only supports CSV data', status=415, mimetype='text/plain')
 
+    # Input file
+    flask_file = request.files['file']
+    if not flask_file:
+        return 'Upload a CSV file'
+    
+    X_train = pd.read_csv(request.files.get('file'))
     results = run_model(X_train)
-
-    # format into a csv
-    results_str = ",\n".join(results.astype('str'))
-
-    # return
-    return Response(response=results_str, status=200, mimetype='text/csv')
+    return results.to_json(orient='values')
+    

@@ -1,12 +1,10 @@
 numpy
 pandas
-git+https://github.com/quiltdata/t4.git#subdirectory=api/python
 flask
-tensorflow
-keras
 jupyter
-seaborn
-scikit-learn
+xgboost
 awscli
 requests==2.20.0  # temp
 sagemaker  # temp
+joblib
+scikit-learn==0.20.2
